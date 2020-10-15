@@ -7,4 +7,5 @@ edition = "2018"
 [dependencies]
 atty = "0.2"
 eyre = "0.6"
+parse_int = "0.4"
 structopt = "0.3"

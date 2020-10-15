@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{self, Read, Write};
 use std::str;
 
@@ -6,22 +7,33 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(about = "Extract byte-range from input.")]
 struct Opt {
-    #[structopt(short, long, default_value = "0")]
+    #[structopt(short, long, parse(try_from_str = parse_int::parse), default_value = "0")]
     offset: usize,
 
     #[structopt(
         short,
         long,
+        parse(try_from_str = parse_int::parse),
         default_value = "-1",
         help = "if negative, read until EOF"
     )]
     size: isize,
+
+    #[structopt(default_value = "-")]
+    filename_in: String,
 }
 
-fn read_and_cut(offset: usize, size: isize) -> eyre::Result<&'static [u8]> {
-    let mut buf = Vec::new();
-    io::stdin().read_to_end(&mut buf)?;
+fn read(filename: &str) -> eyre::Result<Vec<u8>> {
+    if filename == "-" {
+        let mut buf = Vec::new();
+        io::stdin().read_to_end(&mut buf)?;
+        Ok(buf)
+    } else {
+        Ok(fs::read(filename)?)
+    }
+}
 
+fn cut(buf: &[u8], offset: usize, size: isize) -> eyre::Result<&[u8]> {
     // offset == buf.len() も許す (Rust のスライスの規約と同じ)
     eyre::ensure!(
         offset <= buf.len(),
@@ -30,7 +42,7 @@ fn read_and_cut(offset: usize, size: isize) -> eyre::Result<&'static [u8]> {
     );
 
     if size < 0 {
-        return Ok(&buf.leak()[offset..]);
+        return Ok(&buf[offset..]);
     }
 
     let size = size as usize;
@@ -40,7 +52,7 @@ fn read_and_cut(offset: usize, size: isize) -> eyre::Result<&'static [u8]> {
         buf.len()
     );
 
-    Ok(&buf.leak()[offset..offset + size])
+    Ok(&buf[offset..offset + size])
 }
 
 fn is_safe_to_write(buf: &[u8]) -> bool {
@@ -50,7 +62,9 @@ fn is_safe_to_write(buf: &[u8]) -> bool {
 fn main() -> eyre::Result<()> {
     let opt = Opt::from_args();
 
-    let buf = read_and_cut(opt.offset, opt.size)?;
+    let buf = read(&opt.filename_in)?;
+
+    let buf = cut(&buf, opt.offset, opt.size)?;
 
     eyre::ensure!(
         is_safe_to_write(buf),
