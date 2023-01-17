@@ -9,3 +9,6 @@ atty = "0.2.14"
 eyre = "0.6.5"
 parse_int = "0.5.0"
 structopt = "0.3.23"
+
+[profile.release]
+strip = true
